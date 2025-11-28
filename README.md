@@ -1,50 +1,161 @@
-# Welcome to your Expo app 👋
+# Growth Map — React Native тестовое задание (Evolution Lab)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Этот репозиторий содержит реализацию компонента **Growth Map** — вертикального списка учебных модулей с разными состояниями (done / active / locked) и простой пользовательской логикой.
 
-## Get started
+## 📦 Стек
 
-1. Install dependencies
+-   **React Native**
+-   **Expo**
+-   **TypeScript**
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+# 1. Функциональность
 
-   ```bash
-   npx expo start
-   ```
+### 📄 Входные данные
 
-In the output, you'll find options to open the app in a
+JSON (захардкожен в проекте):
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```ts
+export const LESSONS = [
+	{ id: 1, title: "Welcome Journey", status: "done" },
+	{ id: 2, title: "Переключение на себя", status: "active" },
+	{ id: 3, title: "Источник вдохновения", status: "locked" },
+	{ id: 4, title: "Пространство идей", status: "locked" },
+	{ id: 5, title: "Финальный тест", status: "locked" },
+];
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+# 2. UI и логика
 
-To learn more about developing your project with Expo, look at the following resources:
+### 🎨 Состояния уроков
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+-   **done** — визуально отмечен как завершённый
+-   **active** — выделен, можно нажать
+-   **locked** — заблокирован
 
-## Join the community
+### 🧠 Поведение кнопок
 
-Join our community of developers creating universal apps.
+-   Нажатие на **active**
+    → выводит `console.log("Start lesson")`
+-   Нажатие на **locked**
+    → показывает уведомление: «Урок закрыт»
+-   Список вертикально скроллится
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+# 3. Запуск проекта
+
+### Установка зависимостей (Bun):
+
+```bash
+bun install
+```
+
+### Запуск Expo:
+
+```bash
+bun expo start
+```
+
+---
+
+# 4. Демо в Expo Snack
+
+Текстовая ссылка на Snack будет размещена здесь.
+
+---
+
+# 5. Архитектура данных (Supabase / Postgres)
+
+Ниже — пример проектирования таблиц, если выносить логику мапы на реальный бэкенд.
+
+## Таблица: `lessons`
+
+Хранит список доступных уроков.
+
+| поле        | тип       | описание                           |
+| ----------- | --------- | ---------------------------------- |
+| id          | serial PK | ID урока                           |
+| title       | text      | Название                           |
+| order_index | int       | Порядок отображения                |
+| slug        | text      | Уникальный идентификатор (для API) |
+
+## Таблица: `user_lessons`
+
+Хранит прогресс конкретного пользователя.
+
+| поле       | тип                            | описание |
+| ---------- | ------------------------------ | -------- |
+| id         | serial PK                      |          |
+| user_id    | uuid (FK → users.id)           |          |
+| lesson_id  | int (FK → lessons.id)          |          |
+| status     | enum('done','active','locked') |          |
+| updated_at | timestamptz                    |          |
+
+## Представление: `lessons_with_status`
+
+Выводит список уроков и статус пользователя по конкретному уроку
+
+| поле        | тип                            | описание                                 |
+| ----------- | ------------------------------ | ---------------------------------------- |
+| id          | serial PK                      | ID урока                                 |
+| title       | text                           | Название                                 |
+| order_index | int                            | Порядок отображения                      |
+| slug        | text                           | Уникальный идентификатор (для API)       |
+| status      | enum('done','active','locked') | статус пользователя по конкретному уроку |
+
+### Логика связи
+
+-   Каждый пользователь получает строку на каждый урок.
+-   Поле `status` отражает состояние урока.
+-   Представление `lessons_with_status` выводит список уроков со статусом по каждому
+
+### Как эффективно отдавать на фронтенд?
+
+Через представление - views, в котором комбинируются данные из двух разных таблиц
+
+Запрос для views:
+
+```sql
+	SELECT
+		l.id,
+		l.title,
+		l.order_index,
+		l.slug,
+		lp.status,
+		lp.user_id
+	FROM lessons l
+	LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id;
+```
+
+**Почему так эффективно:**
+
+-   Одним запросом получаем полный список.
+-   Для каждого урока сразу известен статус.
+-   Если нужна блокировка по прогрессу — можно вычислять активный урок через:
+
+    -   триггеры,
+    -   materialized view,
+    -   или логику приложения (например, первый lesson со статусом locked → открываем ровно следующий после последнего done).
+
+---
+
+# 6. Что важно в решении
+
+-   Чистый, простой и читаемый код.
+-   Понятное UI-состояние каждого урока.
+-   Минимальная, но корректная логика обхода списка.
+-   Использование TypeScript.
+
+---
+
+# 7. Обратная связь
+
+Готов доработать решение по любым вашим требованиям. Мои контакты
+
+Хабр Карьера: https://career.habr.com/westtrade
+Моб.: +792053171749
+Телеграм: https://t.me/westtrade_g
