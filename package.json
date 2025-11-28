@@ -1,7 +1,7 @@
 {
 	"name": "evolution-lab-demo",
 	"main": "expo-router/entry",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"scripts": {
 		"supabase": "supabase",
 		"gen.types.linked": "supabase gen types -s public --linked  > ./shared/api/database.types.d.ts",
